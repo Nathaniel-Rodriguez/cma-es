@@ -12,7 +12,8 @@ setup(name='cma-es',
     url='https://github.com/Nathaniel-Rodriguez/cma-es.git',
     install_requires=[
           'numpy',
-          'matplotlib'
+          'matplotlib',
+          'joblib'
       ],
     include_package_data=True,
     zip_safe=False)
