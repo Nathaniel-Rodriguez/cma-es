@@ -4,8 +4,104 @@
 		"selected_items":
 		[
 			[
+				"be",
+				"all_time_best"
+			],
+			[
+				"cma",
+				"cmaes"
+			],
+			[
 				"nu",
 				"num_of_jobs"
+			],
+			[
+				"num",
+				"num_of_dimensions"
+			],
+			[
+				"pop",
+				"population"
+			],
+			[
+				"fi",
+				"fitness_sorted_g2l"
+			],
+			[
+				"sigm",
+				"sigma0"
+			],
+			[
+				"max",
+				"max_fitness_by_generation"
+			],
+			[
+				"per",
+				"percentile75th_by_generation"
+			],
+			[
+				"mean",
+				"mean_fitness_by_generation"
+			],
+			[
+				"sor",
+				"sorted_fitness_by_generation"
+			],
+			[
+				"hi",
+				"population_history"
+			],
+			[
+				"plot",
+				"plot_fitness_over_time"
+			],
+			[
+				"re",
+				"return_history"
+			],
+			[
+				"ver",
+				"verbose"
+			],
+			[
+				"para",
+				"parallel"
+			],
+			[
+				"it",
+				"iterations"
+			],
+			[
+				"cov",
+				"covariance_matrix"
+			],
+			[
+				"fitne",
+				"fitness"
+			],
+			[
+				"cor",
+				"corrected_fitness"
+			],
+			[
+				"val",
+				"valid_population"
+			],
+			[
+				"valid_",
+				"valid_population"
+			],
+			[
+				"is",
+				"is_valid"
+			],
+			[
+				"inval",
+				"invalid_parameters"
+			],
+			[
+				"dim",
+				"num_of_dimensions"
 			],
 			[
 				"par",
@@ -28,10 +124,6 @@
 				"sigma_damping"
 			],
 			[
-				"pop",
-				"population"
-			],
-			[
 				"cov_",
 				"cov_matrix_path"
 			],
@@ -42,10 +134,6 @@
 			[
 				"all",
 				"all_time_best"
-			],
-			[
-				"fi",
-				"fitness_sorted_by_fitness"
 			],
 			[
 				"up",
@@ -70,10 +158,6 @@
 			[
 				"mu",
 				"mu_effective"
-			],
-			[
-				"num",
-				"num_of_parents"
 			],
 			[
 				"scal",
@@ -142,10 +226,6 @@
 			[
 				"c",
 				"center_ypos"
-			],
-			[
-				"max",
-				"max_ray_length"
 			],
 			[
 				"ve",
@@ -420,10 +500,6 @@
 				"step_size"
 			],
 			[
-				"plot",
-				"plot_trial"
-			],
-			[
 				"initi",
 				"initial_state"
 			],
@@ -438,82 +514,6 @@
 			[
 				"ss_",
 				"ss_freq"
-			],
-			[
-				"data",
-				"data_mean"
-			],
-			[
-				"opt",
-				"optresult"
-			],
-			[
-				"stat",
-				"static_params"
-			],
-			[
-				"we",
-				"weighted_lsq"
-			],
-			[
-				"qua",
-				"quantile_freq"
-			],
-			[
-				"q",
-				"quantile_freq"
-			],
-			[
-				"m",
-				"mquantiles"
-			],
-			[
-				"quant",
-				"quantile_array"
-			],
-			[
-				"ax",
-				"axis"
-			],
-			[
-				"ss",
-				"ss_binned"
-			],
-			[
-				"trial",
-				"trial_results"
-			],
-			[
-				"sta",
-				"static_params"
-			],
-			[
-				"quan",
-				"quantile_array"
-			],
-			[
-				"fit",
-				"fit_params"
-			],
-			[
-				"drif",
-				"drift_rate"
-			],
-			[
-				"obj",
-				"objective_function"
-			],
-			[
-				"siml",
-				"simulate_random_walk"
-			],
-			[
-				"noise",
-				"noise_threshold"
-			],
-			[
-				"nois",
-				"noise_threshold"
 			]
 		]
 	},
@@ -523,7 +523,7 @@
 			"file": "cma-es/cma-es.py",
 			"settings":
 			{
-				"buffer_size": 9362,
+				"buffer_size": 17183,
 				"encoding": "UTF-8",
 				"line_ending": "Unix"
 			}
@@ -596,6 +596,11 @@
 	],
 	"file_history":
 	[
+		"/home/nathaniel/workspace/research_packages/cma-es/cma-es/__init__.py",
+		"/home/nathaniel/workspace/research_packages/cma-es/README.rst",
+		"/home/nathaniel/workspace/research_packages/make_python_rep.txt",
+		"/home/nathaniel/workspace/DiscreteESN/plot_task_output.py",
+		"/home/nathaniel/workspace/neural_slice_modularity/NeuralNetworkSimulator.py",
 		"/home/nathaniel/workspace/research_packages/relcat/relcat/sensor_agent.py",
 		"/home/nathaniel/workspace/research_packages/cma-es/cma-es/cma-es.py",
 		"/home/nathaniel/workspace/resources/deap_cma.py",
@@ -606,7 +611,6 @@
 		"/home/nathaniel/workspace/research_packages/relcat/relcat/sensor_ctrnn.py",
 		"/home/nathaniel/workspace/research_packages/graphgen/README.rst",
 		"/home/nathaniel/workspace/research_packages/relcat/.gitignore",
-		"/home/nathaniel/workspace/research_packages/make_python_rep.txt",
 		"/home/nathaniel/workspace/research_packages/relcat/setup.py",
 		"/home/nathaniel/workspace/research_packages/relational_categorization/relational_categorization/visual_object.py",
 		"/home/nathaniel/workspace/research_packages/relational_categorization/relational_categorization/sensor_agent.py",
@@ -708,6 +712,10 @@
 		"case_sensitive": false,
 		"find_history":
 		[
+			"cond",
+			"fitness",
+			"fitness_values",
+			"all_time_best",
 			"InitializeRays",
 			"abs",
 			"InitializeSearchTrial",
@@ -752,6 +760,7 @@
 		"regex": false,
 		"replace_history":
 		[
+			"cost_values",
 			"peer_influences_plot_pubversion",
 			"energies_plot_pubversion",
 			"zealot_densities_plot_pubversion",
@@ -776,25 +785,29 @@
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 9362,
+						"buffer_size": 17183,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								2139,
-								2139
+								16450,
+								16450
 							]
 						],
 						"settings":
 						{
+							"rulers":
+							[
+								78
+							],
 							"syntax": "Packages/Python/Python.sublime-syntax",
 							"tab_size": 4,
 							"translate_tabs_to_spaces": true
 						},
 						"translation.x": 0.0,
-						"translation.y": 759.0,
+						"translation.y": 7340.0,
 						"zoom_level": 1.0
 					},
 					"stack_index": 0,
@@ -813,8 +826,8 @@
 						"selection":
 						[
 							[
-								8037,
-								8037
+								5471,
+								5471
 							]
 						],
 						"settings":
@@ -824,7 +837,7 @@
 							"translate_tabs_to_spaces": true
 						},
 						"translation.x": 0.0,
-						"translation.y": 2860.0,
+						"translation.y": 1795.0,
 						"zoom_level": 1.0
 					},
 					"stack_index": 1,
