@@ -335,7 +335,7 @@ class CMAEvolutionaryStrategy:
                 print("Generation: ", i)
             self._update(objective_funct, args)
 
-    def plot_cost_over_time(self, prefix='test', logy=True):
+    def plot_cost_over_time(self, prefix='test', logy=True, savefile=False):
         """
         Plots the evolutionary history of the population's cost.
         Includes min cost individual for each generation,
@@ -372,9 +372,13 @@ class CMAEvolutionaryStrategy:
         plt.ylabel('cost')
         plt.legend(loc='upper left')
         plt.tight_layout()
-        plt.savefig(prefix + "_evocost.png", dpi=300)
-        plt.close()
-        plt.clf()
+
+        if savefile:
+            plt.savefig(prefix + "_evocost.png", dpi=300)
+            plt.close()
+            plt.clf()
+        else:
+            plt.show()
 
 def mutual_sort(sorting_sequence, *following_sequences, 
     reversed=False, key=None):
