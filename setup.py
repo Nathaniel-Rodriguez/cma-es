@@ -4,7 +4,7 @@ def readme():
     with open('README.rst') as f:
         return f.read()
 
-setup(name='cma-es',
+setup(name='cmaes',
     version='0.1',
     description='Implements CMA-ES for python2.7 and python3.5',
     author='Nathaniel Rodriguez',
