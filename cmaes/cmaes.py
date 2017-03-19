@@ -216,9 +216,10 @@ class CMAEvolutionaryStrategy:
         corrected_cost = self._boundary_correction(cost_values, violations)
 
         # Sort the results (both values and population)
-        cost_sorted_l2g, population_sorted_by_cost = \
-            mutual_sort(corrected_cost, population)
-        self._update_log(population_sorted_by_cost, cost_sorted_l2g)
+        cost_sorted_l2g, population_sorted_by_cost, \
+            valid_population_sorted_by_cost = \
+            mutual_sort(corrected_cost, population, valid_population)
+        self._update_log(valid_population_sorted_by_cost, cost_sorted_l2g)
 
         # Calculate weighted means of ranked, centroid difference, and h_sig
         old_centroid = self.centroid.copy()
@@ -303,10 +304,10 @@ class CMAEvolutionaryStrategy:
 
         corrected_cost = []
         for i in range(self.population_size):
-            if violations[i][0]:
+            if not violations[i][0]:
                 corrected_cost.append(cost[i] + 
                     violations[i][1] * np.median(cost) / (self.sigma * \
-                        self.sigma * np.mean(covariance_matrix)))
+                        self.sigma * np.mean(self.covariance_matrix)))
             else:
                 corrected_cost.append(cost[i])
 
@@ -380,6 +381,10 @@ class CMAEvolutionaryStrategy:
         else:
             plt.show()
 
+    def get_best(self):
+
+        return self.all_time_best['x']
+
 def mutual_sort(sorting_sequence, *following_sequences, 
     reversed=False, key=None):
 
@@ -392,8 +397,8 @@ def mutual_sort(sorting_sequence, *following_sequences,
     return (np.array(sorting_sequence)[sorted_indices], \
             *sorted_following_sequences)
 
-def fmax(objective_funct, x0, sigma0, args=(), iterations=1000, \
-    parallel=True, num_of_jobs=-2, cma_params={}, bounds=[], \
+def fmin(objective_funct, x0, sigma0, args=(), iterations=1000, \
+    parallel=True, num_of_jobs=-2, cma_params={}, bounds=None, \
     verbose=False, return_history=False):
     """
     A functional version of the CMA evolutionary strategy
@@ -403,14 +408,14 @@ def fmax(objective_funct, x0, sigma0, args=(), iterations=1000, \
     """
 
     cma_object = CMAEvolutionaryStrategy(x0, sigma0, **cma_params)
-    cma.engage(objective_funct, args, iterations, parallel, 
+    cma_object.engage(objective_funct, args, iterations, parallel, 
                 num_of_jobs, bounds, verbose)
 
     if return_history:
-        return self.all_time_best['x'], self.all_time_best['cost'], \
-                self.population_history
+        return cma_object.all_time_best['x'], cma_object.all_time_best['cost'], \
+                cma_object.population_history
     else:
-        return self.all_time_best['x'], self.all_time_best['cost']
+        return cma_object.all_time_best['x'], cma_object.all_time_best['cost']
 
 def elli(x):
     """ellipsoid-like test cost function"""
@@ -456,5 +461,8 @@ if __name__ == '__main__':
 
     cmaes = CMAEvolutionaryStrategy([0.5, 0.5, 0.5], 0.5)
     test_functor = FunctorParallelTest(1e3, 2.)
-    cmaes.engage(test_functor, args=(1e3, 2.), iterations=1000, num_of_jobs=2, verbose=True)
+    cmaes.engage(test_functor, args=(1e3, 2.), 
+        iterations=1000, num_of_jobs=1, verbose=True,
+        bounds=[(-1,1), (-1,1),(-1,1)])
+    print(cmaes.get_best())
     cmaes.plot_cost_over_time()
