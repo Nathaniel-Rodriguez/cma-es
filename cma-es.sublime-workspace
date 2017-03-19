@@ -4,6 +4,58 @@
 		"selected_items":
 		[
 			[
+				"sor",
+				"sorted_following_sequences"
+			],
+			[
+				"sort",
+				"sorted_indices"
+			],
+			[
+				"fo",
+				"following_sequence"
+			],
+			[
+				"foll",
+				"following_sequences"
+			],
+			[
+				"ar",
+				"argsort"
+			],
+			[
+				"cor",
+				"corrected_cost"
+			],
+			[
+				"nu",
+				"num_of_dimensions"
+			],
+			[
+				"pop",
+				"population"
+			],
+			[
+				"old",
+				"old_centroid"
+			],
+			[
+				"co",
+				"cost_sorted_g2l"
+			],
+			[
+				"sig",
+				"sigma_damping"
+			],
+			[
+				"cov",
+				"cov_time_const"
+			],
+			[
+				"ch",
+				"chiN"
+			],
+			[
 				"be",
 				"all_time_best"
 			],
@@ -12,16 +64,8 @@
 				"cmaes"
 			],
 			[
-				"nu",
-				"num_of_jobs"
-			],
-			[
 				"num",
 				"num_of_dimensions"
-			],
-			[
-				"pop",
-				"population"
 			],
 			[
 				"fi",
@@ -42,10 +86,6 @@
 			[
 				"mean",
 				"mean_fitness_by_generation"
-			],
-			[
-				"sor",
-				"sorted_fitness_by_generation"
 			],
 			[
 				"hi",
@@ -72,16 +112,8 @@
 				"iterations"
 			],
 			[
-				"cov",
-				"covariance_matrix"
-			],
-			[
 				"fitne",
 				"fitness"
-			],
-			[
-				"cor",
-				"corrected_fitness"
 			],
 			[
 				"val",
@@ -472,10 +504,6 @@
 				"signals"
 			],
 			[
-				"sig",
-				"signals"
-			],
-			[
 				"sn",
 				"sn_binned"
 			],
@@ -486,34 +514,6 @@
 			[
 				"qu",
 				"quantile_array"
-			],
-			[
-				"daa",
-				"data_size"
-			],
-			[
-				"get",
-				"get_hit_RT"
-			],
-			[
-				"step",
-				"step_size"
-			],
-			[
-				"initi",
-				"initial_state"
-			],
-			[
-				"pre",
-				"pred_sn_var"
-			],
-			[
-				"pred",
-				"pred_ss_freq"
-			],
-			[
-				"ss_",
-				"ss_freq"
 			]
 		]
 	},
@@ -523,16 +523,7 @@
 			"file": "cma-es/cma-es.py",
 			"settings":
 			{
-				"buffer_size": 17183,
-				"encoding": "UTF-8",
-				"line_ending": "Unix"
-			}
-		},
-		{
-			"file": "/home/nathaniel/workspace/resources/deap_cma.py",
-			"settings":
-			{
-				"buffer_size": 26552,
+				"buffer_size": 17902,
 				"encoding": "UTF-8",
 				"line_ending": "Unix"
 			}
@@ -596,6 +587,10 @@
 	],
 	"file_history":
 	[
+		"/home/nathaniel/workspace/research_packages/cma-es/setup.py",
+		"/home/nathaniel/workspace/resources/deap_cma.py",
+		"/home/nathaniel/workspace/research_packages/utilities/utilities/listmanipulation.py",
+		"/home/nathaniel/workspace/research_packages/utilities/utilities/mathutils.py",
 		"/home/nathaniel/workspace/research_packages/cma-es/cma-es/__init__.py",
 		"/home/nathaniel/workspace/research_packages/cma-es/README.rst",
 		"/home/nathaniel/workspace/research_packages/make_python_rep.txt",
@@ -603,8 +598,6 @@
 		"/home/nathaniel/workspace/neural_slice_modularity/NeuralNetworkSimulator.py",
 		"/home/nathaniel/workspace/research_packages/relcat/relcat/sensor_agent.py",
 		"/home/nathaniel/workspace/research_packages/cma-es/cma-es/cma-es.py",
-		"/home/nathaniel/workspace/resources/deap_cma.py",
-		"/home/nathaniel/workspace/research_packages/cma-es/setup.py",
 		"/home/nathaniel/workspace/neural_slice_modularity/RunParallelCircuitGenerators.py",
 		"/home/nathaniel/workspace/DiscreteESN/dynamic_range_code/mc_binomial_objective.py",
 		"/home/nathaniel/workspace/research_packages/relcat/relcat/visual_objects.py",
@@ -712,6 +705,9 @@
 		"case_sensitive": false,
 		"find_history":
 		[
+			"generate",
+			"lambda",
+			"chiN",
 			"cond",
 			"fitness",
 			"fitness_values",
@@ -785,15 +781,15 @@
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 17183,
+						"buffer_size": 17902,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								16450,
-								16450
+								68,
+								68
 							]
 						],
 						"settings":
@@ -807,40 +803,10 @@
 							"translate_tabs_to_spaces": true
 						},
 						"translation.x": 0.0,
-						"translation.y": 7340.0,
+						"translation.y": 0.0,
 						"zoom_level": 1.0
 					},
 					"stack_index": 0,
-					"type": "text"
-				},
-				{
-					"buffer": 1,
-					"file": "/home/nathaniel/workspace/resources/deap_cma.py",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 26552,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								5471,
-								5471
-							]
-						],
-						"settings":
-						{
-							"syntax": "Packages/Python/Python.sublime-syntax",
-							"tab_size": 4,
-							"translate_tabs_to_spaces": true
-						},
-						"translation.x": 0.0,
-						"translation.y": 1795.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 1,
 					"type": "text"
 				}
 			]

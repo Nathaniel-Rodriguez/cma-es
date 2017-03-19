@@ -43,6 +43,10 @@ class CMAEvolutionaryStrategy:
     transformations :
     a + (b-a) × x/10 or a + (b-a) × (x/10)2 ≥ a or a × (b/a)x/10 ≥ 0.
 
+    NOTE: Only linear scaling is available. Take Hansen's advice and
+    make a wrapper to scale yourself between [0,1] and choose an 
+    appropriate sigma (0.2)
+
     """
 
     def __init__(self, x0, sigma0, **kwargs):
@@ -422,11 +426,31 @@ def rosenbrock(x):
     return sum(100 * (x[i]**2 - x[i+1])**2 + (x[i] - 1)**2 
         for i in range(n-1))
 
+class FunctorParallelTest:
+    def __init__(self, par1, par2):
+        self.par1 = None
+        self.par2 = None
+        
+    def __call__(self, x, par1, par2):
+        return self._elli(x, par1, par2)
+
+    def _elli(self, x, par1, par2):
+        """ellipsoid-like test cost function"""
+        self.par1 = par1
+        self.par2 = par2
+        n = len(x)
+        return sum(x[i]**2 * self.par1**(self.par2*i/(n-1)) for i in range(n))
+
 if __name__ == '__main__':
     """
     testing
     """
 
+    # cmaes = CMAEvolutionaryStrategy([0.5, 0.5, 0.5], 0.5)
+    # cmaes.engage(rosenbrock, iterations=1000, num_of_jobs=3, verbose=True)
+    # cmaes.plot_cost_over_time()
+
     cmaes = CMAEvolutionaryStrategy([0.5, 0.5, 0.5], 0.5)
-    cmaes.engage(rosenbrock, iterations=1000, num_of_jobs=1, verbose=True)
+    test_functor = FunctorParallelTest(1e3, 2.)
+    cmaes.engage(test_functor, args=(1e3, 2.), iterations=1000, num_of_jobs=2, verbose=True)
     cmaes.plot_cost_over_time()
