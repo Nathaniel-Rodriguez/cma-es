@@ -304,7 +304,7 @@ class CMAEvolutionaryStrategy:
 
         corrected_cost = []
         for i in range(self.population_size):
-            if not violations[i][0]:
+            if (not violations[i][0]) and self.boundary_penalty:
                 corrected_cost.append(cost[i] + 
                     violations[i][1] * np.median(cost) / (self.sigma * \
                         self.sigma * np.mean(self.covariance_matrix)))
@@ -314,7 +314,8 @@ class CMAEvolutionaryStrategy:
         return corrected_cost
 
     def engage(self, objective_funct, args=(), iterations = 100, \
-        parallel=True, num_of_jobs=-2, bounds=None, verbose=False):
+        parallel=True, num_of_jobs=-2, bounds=None, boundary_penalty=True,
+        verbose=False):
         """
         Run the update process on the objective function for designated 
         number of iterations.
@@ -326,6 +327,7 @@ class CMAEvolutionaryStrategy:
         """
 
         self.bounds = bounds
+        self.boundary_penalty = boundary_penalty
         if parallel:
             self.num_of_jobs = num_of_jobs
         else:
@@ -399,7 +401,7 @@ def mutual_sort(sorting_sequence, *following_sequences,
 
 def fmin(objective_funct, x0, sigma0, args=(), iterations=1000, \
     parallel=True, num_of_jobs=-2, cma_params={}, bounds=None, \
-    verbose=False, return_history=False):
+    verbose=False, return_history=False, boundary_penalty=True):
     """
     A functional version of the CMA evolutionary strategy
 
@@ -409,7 +411,7 @@ def fmin(objective_funct, x0, sigma0, args=(), iterations=1000, \
 
     cma_object = CMAEvolutionaryStrategy(x0, sigma0, **cma_params)
     cma_object.engage(objective_funct, args, iterations, parallel, 
-                num_of_jobs, bounds, verbose)
+                num_of_jobs, bounds, boundary_penalty, verbose)
 
     if return_history:
         return cma_object.all_time_best['x'], cma_object.all_time_best['cost'], \
