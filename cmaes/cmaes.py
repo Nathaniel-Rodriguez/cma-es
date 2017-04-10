@@ -1,6 +1,6 @@
 import math
 import numpy as np
-from joblib import Parallel, delayed
+from functools import partial
 
 class CMAEvolutionaryStrategy:
     """
@@ -64,6 +64,9 @@ class CMAEvolutionaryStrategy:
         all the same scale for sigma.
         """
 
+        self.seed = kwargs.get('seed', 1)
+        # self.mpi = kwargs.get('mpi', False)
+        self.prng = np.random.RandomState(self.seed)
         self.centroid = np.array(x0)
         self.sigma0 = sigma0
         self.num_of_dimensions = len(x0)
@@ -84,6 +87,9 @@ class CMAEvolutionaryStrategy:
         # Each element is a dictionary with keys={'x', 'cost'} 
         # where 'x' is the member vector
         self.population_history = []
+        self.centroid_history = []
+        self.sigma_history = []
+
         # best is keyed by 'x' and 'cost'
         self.all_time_best = {}
 
@@ -143,7 +149,7 @@ class CMAEvolutionaryStrategy:
         """
 
         return self.centroid + self.sigma * self.scaling_of_variables * \
-            np.dot(np.random.standard_normal((self.population_size, \
+            np.dot(self.prng.standard_normal((self.population_size, \
                 self.num_of_dimensions)), self.BD.T)
 
     def _updated_sigma_path(self, c_diff):
@@ -191,6 +197,8 @@ class CMAEvolutionaryStrategy:
 
         self.population_history.append([{ 'x' : population[i], \
             'cost': cost_values[i]} for i in range(self.population_size)] )
+        self.centroid_history.append(self.centroid.copy())
+        self.sigma_history.append(self.sigma)
 
         if len(self.all_time_best) == 0:
             self.all_time_best['x'] = self.population_history[-1][0]['x']
@@ -203,7 +211,38 @@ class CMAEvolutionaryStrategy:
             self.all_time_best['cost'] = \
                 self.population_history[-1][0]['cost']
 
-    def _update(self, objective_funct, args):
+    def _serial_update(self, population, objective_funct, args):
+
+        cost_values = []
+        for pop in population:
+            cost_values.append(objective_funct(pop, *args))
+
+        return cost_values
+
+    def _parallel_update(self, population, objective_funct, 
+        args, num_of_jobs, Parallel, delayed):
+
+        return Parallel(n_jobs=num_of_jobs)(delayed(\
+            objective_funct)(pop, *args) for pop in population )
+
+    def _mpi_update(self, population, objective_funct, 
+        args, comm, size, rank):
+
+        work_list, num_items_per_worker = \
+                                split_work_between_ranks(population, size)
+            
+        cost_values = []
+        for pop in work_list[rank]:
+            cost_values.append(objective_funct(pop, *args))
+        cost_values = np.array(cost_values, dtype=np.float64)
+        all_cost_values = np.empty(size * num_items_per_worker, 
+                                    dtype=np.float64)
+        comm.Allgather([cost_values, MPI.DOUBLE], 
+                        [all_cost_values, MPI.DOUBLE])
+
+        return all_cost_values
+
+    def _core_update(self, update_method):
         """
         updates the evolutionary paths, sigma, and the covariance matrix.
         """
@@ -211,8 +250,7 @@ class CMAEvolutionaryStrategy:
         # Sample from distribution to create new offspring
         population = self._generate_population()
         valid_population, violations = self._boundary_handling(population)
-        cost_values = Parallel(n_jobs=self.num_of_jobs)(delayed(\
-            objective_funct)(pop, *args) for pop in valid_population )
+        cost_values = update_method(valid_population)
         corrected_cost = self._boundary_correction(cost_values, violations)
 
         # Sort the results (both values and population)
@@ -315,7 +353,7 @@ class CMAEvolutionaryStrategy:
 
     def engage(self, objective_funct, args=(), iterations = 100, \
         parallel=True, num_of_jobs=-2, bounds=None, boundary_penalty=True,
-        verbose=False):
+        verbose=False, mpi=False):
         """
         Run the update process on the objective function for designated 
         number of iterations.
@@ -328,15 +366,83 @@ class CMAEvolutionaryStrategy:
 
         self.bounds = bounds
         self.boundary_penalty = boundary_penalty
-        if parallel:
-            self.num_of_jobs = num_of_jobs
-        else:
-            self.num_of_jobs = 1
+
+        if not parallel:
+            update_method = partial(self._serial_update, 
+                                    objective_funct=objective_funct, 
+                                    args=args)
+                
+        elif parallel:
+            from joblib import Parallel, delayed
+            update_method = partial(self._parallel_update, 
+                objective_funct=objective_funct, 
+                args=args, 
+                num_of_jobs=num_of_jobs, 
+                Parallel=Parallel, 
+                delayed=delayed)
+
+        elif mpi:
+            from mpi4py import MPI
+            comm = MPI.COMM_WORLD
+            size = comm.Get_size()
+            rank = comm.Get_rank()
+            update_method = partial(self._mpi_update, 
+                objective_funct=objective_funct, 
+                args=args, 
+                comm=comm, 
+                size=size, 
+                rank=rank)
 
         for i in range(iterations):
             if verbose:
-                print("Generation: ", i)
-            self._update(objective_funct, args)
+                print("Generation:", i)
+            self._core_update(update_method)
+
+    def plot_sigma_over_time(self, prefix='test', logy=False, savefile=False):
+
+        import matplotlib.pyplot as plt
+
+        sigma_history = np.array(self.sigma_history)
+
+        plt.plot(range(len(sigma_history)), \
+            sigma_history, ls='-', marker='None', \
+            color='blue')
+        if logy:
+            plt.yscale('log')
+        plt.grid(True)
+        plt.xlabel('generation')
+        plt.ylabel('$\sigma$')
+        plt.tight_layout()
+
+        if savefile:
+            plt.savefig(prefix + "_evosigma.png", dpi=300)
+            plt.close()
+            plt.clf()
+        else:
+            plt.show()
+            plt.clf()
+
+    def plot_centroid_over_time(self, prefix='test', logy=False, savefile=False):
+
+        import matplotlib.pyplot as plt 
+
+        centroid_history = np.array(self.centroid_history)
+
+        for i in range(self.num_of_dimensions):
+            plt.plot(range(len(centroid_history)), centroid_history[:,i])
+
+        plt.grid(True)
+        plt.xlabel('generation')
+        plt.ylabel('x')
+        plt.tight_layout()
+
+        if savefile:
+            plt.savefig(prefix + "_evocentroid.png", dpi=300)
+            plt.close()
+            plt.clf()
+        else:
+            plt.show()
+            plt.clf()
 
     def plot_cost_over_time(self, prefix='test', logy=True, savefile=False):
         """
@@ -373,7 +479,7 @@ class CMAEvolutionaryStrategy:
         plt.grid(True)
         plt.xlabel('generation')
         plt.ylabel('cost')
-        plt.legend(loc='upper left')
+        plt.legend(loc='upper right')
         plt.tight_layout()
 
         if savefile:
@@ -382,6 +488,7 @@ class CMAEvolutionaryStrategy:
             plt.clf()
         else:
             plt.show()
+            plt.clf()
 
     def get_best(self):
 
@@ -400,8 +507,8 @@ def mutual_sort(sorting_sequence, *following_sequences,
             *sorted_following_sequences)
 
 def fmin(objective_funct, x0, sigma0, args=(), iterations=1000, \
-    parallel=True, num_of_jobs=-2, cma_params={}, bounds=None, \
-    verbose=False, return_history=False, boundary_penalty=True):
+    parallel=True, num_of_jobs=-2, cma_params={'seed':1}, bounds=None, \
+    verbose=False, return_history=False, boundary_penalty=True, mpi=False):
     """
     A functional version of the CMA evolutionary strategy
 
@@ -411,13 +518,14 @@ def fmin(objective_funct, x0, sigma0, args=(), iterations=1000, \
 
     cma_object = CMAEvolutionaryStrategy(x0, sigma0, **cma_params)
     cma_object.engage(objective_funct, args, iterations, parallel, 
-                num_of_jobs, bounds, boundary_penalty, verbose)
+                num_of_jobs, bounds, boundary_penalty, verbose, mpi)
 
     if return_history:
         return cma_object.all_time_best['x'], cma_object.all_time_best['cost'], \
-                cma_object.population_history
+                self.centroid, cma_object.population_history
     else:
-        return cma_object.all_time_best['x'], cma_object.all_time_best['cost']
+        return cma_object.all_time_best['x'], cma_object.all_time_best['cost'], \
+                self.centroid
 
 def elli(x):
     """ellipsoid-like test cost function"""
@@ -436,6 +544,14 @@ def rosenbrock(x):
         raise ValueError('dimension must be greater one')
     return sum(100 * (x[i]**2 - x[i+1])**2 + (x[i] - 1)**2 
         for i in range(n-1))
+
+def split_work_between_ranks(iterable, size):
+
+    assert(len(iterable) % size == 0)
+    num_items_per_worker = int(len(iterable) / size)
+    return [ iterable[x:x + num_items_per_worker] 
+            for x in range(0, len(iterable), num_items_per_worker) ], \
+            num_items_per_worker
 
 class FunctorParallelTest:
     def __init__(self, par1, par2):
@@ -464,7 +580,15 @@ if __name__ == '__main__':
     cmaes = CMAEvolutionaryStrategy([0.5, 0.5, 0.5], 0.5)
     test_functor = FunctorParallelTest(1e3, 2.)
     cmaes.engage(test_functor, args=(1e3, 2.), 
-        iterations=1000, num_of_jobs=1, verbose=True,
-        bounds=[(-1,1), (-1,1),(-1,1)])
-    print(cmaes.get_best())
-    cmaes.plot_cost_over_time()
+        iterations=1000, num_of_jobs=1, verbose=True, parallel=False,
+        bounds=[(-1,1), (-1,1),(-1,1)], mpi=True)
+
+    from mpi4py import MPI
+    comm = MPI.COMM_WORLD
+    size = comm.Get_size()
+    rank = comm.Get_rank()
+    if rank == 0:
+        print(cmaes.get_best())
+        cmaes.plot_cost_over_time()
+        cmaes.plot_centroid_over_time()
+        cmaes.plot_sigma_over_time()

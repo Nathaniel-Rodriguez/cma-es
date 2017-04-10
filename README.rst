@@ -6,3 +6,4 @@ Requirements:
 (1) Numpy
 (2) Matplotlib
 (3) joblib
+(4) utilities (https://github.com/Nathaniel-Rodriguez/utilities.git)
