@@ -65,7 +65,6 @@ class CMAEvolutionaryStrategy:
         """
 
         self.seed = kwargs.get('seed', 1)
-        # self.mpi = kwargs.get('mpi', False)
         self.prng = np.random.RandomState(self.seed)
         self.centroid = np.array(x0)
         self.sigma0 = sigma0
@@ -494,6 +493,133 @@ class CMAEvolutionaryStrategy:
 
         return self.all_time_best['x']
 
+class sepCMAEvolutionaryStrategy(CMAEvolutionaryStrategy):
+
+    def __init__(self, x0, sigma0, **kwargs):
+
+        self.seed = kwargs.get('seed', 1)
+        self.prng = np.random.RandomState(self.seed)
+        self.centroid = np.array(x0)
+        self.sigma0 = sigma0
+        self.num_of_dimensions = len(x0)
+        self.scaling_of_variables = kwargs.get('scaling_of_variables', 
+                                            np.ones(self.num_of_dimensions))
+        self.population_size = kwargs.get('population_size', 
+                        4 + math.floor(3 * math.log(self.num_of_dimensions)))
+        self.num_of_parents = kwargs.get('num_of_parents', 
+                                            int(self.population_size / 2.))
+        self.update_count = 0
+        self.covariance_matrix = np.identity(self.num_of_dimensions)
+        self._compute_parameters(kwargs)
+
+        # Logging variables
+        # Population history is a nested list. The outer list is over 
+        # generations, the inner list is sorted by performance. 
+        # Each element is a dictionary with keys={'x', 'cost'} 
+        # where 'x' is the member vector
+        self.population_history = []
+        self.centroid_history = []
+        self.sigma_history = []
+
+        # best is keyed by 'x' and 'cost'
+        self.all_time_best = {}
+
+    def _compute_parameters(self, kwargs):
+
+        self.sigma = self.sigma0
+
+        self.chiN = math.sqrt(self.num_of_dimensions) * \
+            (1 - 1. / (4. * self.num_of_dimensions) + 1. / \
+                (21. * self.num_of_dimensions ** 2))
+        # Generate initial evolutionary paths
+        self.cov_matrix_path = np.zeros(self.num_of_dimensions)
+        self.sigma_path = np.zeros(self.num_of_dimensions)
+
+        # Generate initial weights and normalize them
+        self.weights = math.log(self.num_of_parents + 0.5) - \
+                        np.log(np.arange(1, self.num_of_parents + 1))
+        self.weights /= sum(self.weights)
+        # Variance-effectiveness of weights
+        self.mu_effective = 1. / sum(self.weights ** 2)
+
+        # separable Covariance matrix
+        self.B = np.identity(self.num_of_dimensions)
+        self._separable_cov_update()
+
+        # Generate time-constants
+        self.cov_time_const = kwargs.get('cov_time_const', 
+            4. / (self.num_of_dimensions + 4))
+            # (4.0 + self.mu_effective / \
+            # self.num_of_dimensions) / (self.num_of_dimensions + 4 + 2 * \
+            # self.mu_effective / self.num_of_dimensions)
+        self.sigma_time_const = kwargs.get('sigma_time_const', 
+            (self.mu_effective + 2.) \
+                / (self.num_of_dimensions + self.mu_effective + 3))
+            # (self.mu_effective + 2) / \
+            # (self.num_of_dimensions + self.mu_effective + 5)
+
+        # Rank 1 update learning rate for covariance matrix
+        self.cov_1 = kwargs.get("cov_1", 
+            2.0 / ((self.num_of_dimensions + 1.3)**2 \
+            + self.mu_effective) * (self.num_of_dimensions + 2) / 3)
+
+        # Rank mu update learning rate for covariance matrix
+        self.cov_mu = kwargs.get("cov_mu", 
+            min([1 - self.cov_1, 
+                2. * (self.mu_effective - 2. + 1. / self.mu_effective) \
+                / ((self.num_of_dimensions + 2.)**2 + self.mu_effective)]))
+
+        # Damping term for sigma
+        self.sigma_damping = kwargs.get("sigma_damping", 
+            1. + 2 * max(0, math.sqrt((self.mu_effective - 1) \
+            / (self.num_of_dimensions + 1)) - 1) + self.sigma_time_const)
+
+    def _separable_cov_update(self):
+
+        self.diagD = np.diagonal(self.covariance_matrix) ** 0.5        
+        self.BD = self.B * self.diagD
+
+    def _core_update(self, update_method):
+        """
+        updates the evolutionary paths, sigma, and the covariance matrix.
+        """
+
+        # Sample from distribution to create new offspring
+        population = self._generate_population()
+        valid_population, violations = self._boundary_handling(population)
+        cost_values = update_method(valid_population)
+        corrected_cost = self._boundary_correction(cost_values, violations)
+
+        # Sort the results (both values and population)
+        cost_sorted_l2g, population_sorted_by_cost, \
+            valid_population_sorted_by_cost = \
+            mutual_sort(corrected_cost, population, valid_population)
+        self._update_log(valid_population_sorted_by_cost, cost_sorted_l2g)
+
+        # Calculate weighted means of ranked, centroid difference, and h_sig
+        old_centroid = self.centroid.copy()
+        self.centroid = np.dot(self.weights, \
+            population_sorted_by_cost[0:self.num_of_parents])
+        c_diff = self.centroid - old_centroid
+        hsig = float((np.linalg.norm(self.sigma_path) /
+                      math.sqrt(1. - (1. - self.sigma_time_const) ** (2. * \
+                        (self.update_count + 1.))) / self.chiN
+                      < (1.4 + 2. / (self.num_of_dimensions + 1.))))
+        self.update_count += 1
+
+        # Update the evolutionary paths
+        self._updated_sigma_path(c_diff)
+        self._update_cov_path(c_diff, hsig)
+
+        # Update the covariance matrix and sigma
+        parent_dist_from_centroid = \
+            population_sorted_by_cost[:self.num_of_parents] - old_centroid
+        self._update_cov_matrix(parent_dist_from_centroid, hsig)
+        self._update_sigma()
+
+        # Update eigen decomposition
+        self._separable_cov_update()
+
 def mutual_sort(sorting_sequence, *following_sequences, 
     reversed=False, key=None):
 
@@ -508,7 +634,8 @@ def mutual_sort(sorting_sequence, *following_sequences,
 
 def fmin(objective_funct, x0, sigma0, args=(), iterations=1000, \
     parallel=True, num_of_jobs=-2, cma_params={'seed':1}, bounds=None, \
-    verbose=False, return_history=False, boundary_penalty=True, mpi=False):
+    verbose=False, return_history=False, boundary_penalty=True, mpi=False,
+    separable=False):
     """
     A functional version of the CMA evolutionary strategy
 
@@ -516,7 +643,11 @@ def fmin(objective_funct, x0, sigma0, args=(), iterations=1000, \
     parameters accepted.
     """
 
-    cma_object = CMAEvolutionaryStrategy(x0, sigma0, **cma_params)
+    if separable:
+        cma_object = sepCMAEvolutionaryStrategy(x0, sigma0, **cma_params)
+    else:
+        cma_object = CMAEvolutionaryStrategy(x0, sigma0, **cma_params)
+
     cma_object.engage(objective_funct, args, iterations, parallel, 
                 num_of_jobs, bounds, boundary_penalty, verbose, mpi)
 
@@ -572,23 +703,38 @@ if __name__ == '__main__':
     """
     testing
     """
+    # import profile
 
-    # cmaes = CMAEvolutionaryStrategy([0.5, 0.5, 0.5], 0.5)
-    # cmaes.engage(rosenbrock, iterations=1000, num_of_jobs=3, verbose=True)
+    xo = np.array([0.5 for i in range(500)])
+    cmaes = sepCMAEvolutionaryStrategy(xo, 0.5, seed=3, population_size=8)
+    cmaes.engage(rosenbrock, iterations=1000, 
+        parallel=False, verbose=False, mpi=True)
+    # from mpi4py import MPI
+    # comm = MPI.COMM_WORLD
+    # size = comm.Get_size()
+    # rank = comm.Get_rank()
+    # if rank == 0:
+    #     print(cmaes.get_best())
+    #     cmaes.plot_cost_over_time()
+    #     cmaes.plot_centroid_over_time()
+    #     cmaes.plot_sigma_over_time()
+
     # cmaes.plot_cost_over_time()
+    # cmaes.plot_centroid_over_time()
+    # cmaes.plot_sigma_over_time()
 
-    cmaes = CMAEvolutionaryStrategy([0.5, 0.5, 0.5], 0.5)
-    test_functor = FunctorParallelTest(1e3, 2.)
-    cmaes.engage(test_functor, args=(1e3, 2.), 
-        iterations=1000, num_of_jobs=1, verbose=True, parallel=False,
-        bounds=[(-1,1), (-1,1),(-1,1)], mpi=True)
+    # cmaes = sepCMAEvolutionaryStrategy([0.5, 0.5, 0.5], 0.5)
+    # test_functor = FunctorParallelTest(1e3, 2.)
+    # cmaes.engage(test_functor, args=(1e3, 2.), 
+    #     iterations=1000, num_of_jobs=1, verbose=True, parallel=False,
+    #     bounds=[(-1,1), (-1,1),(-1,1)], mpi=True)
 
-    from mpi4py import MPI
-    comm = MPI.COMM_WORLD
-    size = comm.Get_size()
-    rank = comm.Get_rank()
-    if rank == 0:
-        print(cmaes.get_best())
-        cmaes.plot_cost_over_time()
-        cmaes.plot_centroid_over_time()
-        cmaes.plot_sigma_over_time()
+    # from mpi4py import MPI
+    # comm = MPI.COMM_WORLD
+    # size = comm.Get_size()
+    # rank = comm.Get_rank()
+    # if rank == 0:
+    #     print(cmaes.get_best())
+    #     cmaes.plot_cost_over_time()
+    #     cmaes.plot_centroid_over_time()
+    #     cmaes.plot_sigma_over_time()
