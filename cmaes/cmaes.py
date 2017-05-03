@@ -25,7 +25,7 @@ class CMAEvolutionaryStrategy:
     typical actual domain of the parameter/coordinate. To achieve this 
     on-the-fly, a linear scaling of variables is provided in the Scilab and 
     Python codes below. With this transformation, a typical initial sigma 
-    will be ≈ 2, see also below. The natural encoding of (some of) the 
+    will be roughly 2, see also below. The natural encoding of (some of) the 
     parameters can also be "logarithmic". That is, for a parameter that must 
     always be positive, with a ratio between typical upper and lower value 
     being larger than 100, we might use 10x instead of x to call the 
