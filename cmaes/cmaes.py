@@ -601,8 +601,10 @@ def mutual_sort(sorting_sequence, *following_sequences, **kwargs):
         sorted_following_sequences.append(
             np.array(following_sequence)[sorted_indices])
 
-    return (np.array(sorting_sequence)[sorted_indices], \
-            *sorted_following_sequences)
+    return_elements = [np.array(sorting_sequence)[sorted_indices]]
+    for seq in sorted_following_sequences:
+        return_elements.append(seq)
+    return return_elements
 
 def fmin(objective_funct, x0, sigma0, args=(), iterations=1000, \
     parallel=True, num_of_jobs=-2, cma_params={'seed':1}, bounds=None, \
