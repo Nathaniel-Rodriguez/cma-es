@@ -590,8 +590,10 @@ class sepCMAEvolutionaryStrategy(CMAEvolutionaryStrategy):
         # Update eigen decomposition
         self._separable_cov_update()
 
-def mutual_sort(sorting_sequence, *following_sequences, 
-    reversed=False, key=None):
+def mutual_sort(sorting_sequence, *following_sequences, **kwargs):
+
+    # reverse = kwargs.get("reversed", False)
+    # key = kwargs.get("key", None)
 
     sorted_indices = np.argsort(sorting_sequence)
     sorted_following_sequences = []
