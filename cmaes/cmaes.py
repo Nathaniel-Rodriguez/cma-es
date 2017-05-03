@@ -30,18 +30,18 @@ class CMAEvolutionaryStrategy:
     always be positive, with a ratio between typical upper and lower value 
     being larger than 100, we might use 10x instead of x to call the 
     objective function. More specifically, to achieve the parameter range 
-    [10–4,10–1], we use 10–4×103x/10 with x in [0; 10]. Again, the idea is to 
+    [10-4,10-1], we use 10-4x103x/10 with x in [0; 10]. Again, the idea is to 
     have similar sensitivity: this makes sense if we expect the change from 
-    10–4 to 10–3 to have an impact similar to the change from 10–2 to 10–1. 
+    10-4 to 10-3 to have an impact similar to the change from 10-2 to 10-1. 
     In order to avoid the problem that changes of very small values have too 
-    less an impact, an alternative is to choose 10–1 × (x/10)2 ≥ 0. In the 
+    less an impact, an alternative is to choose 10-1 x (x/10)2 >= 0. In the 
     case where only a lower bound at zero is necessary, a simple and natural 
     transformation is x2 × default_x, such that x=1 represents the default 
     (or initial) value and x remains unbounded during optimization.
 
     In summary, to map the values [0;10] into [a;b] we have the alternative 
     transformations :
-    a + (b-a) × x/10 or a + (b-a) × (x/10)2 ≥ a or a × (b/a)x/10 ≥ 0.
+    a + (b-a) x x/10 or a + (b-a) x (x/10)2 >= a or a x (b/a)x/10 >= 0.
 
     NOTE: Only linear scaling is available. Take Hansen's advice and
     make a wrapper to scale yourself between [0,1] and choose an 
