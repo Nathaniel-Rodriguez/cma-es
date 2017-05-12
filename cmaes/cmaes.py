@@ -1,5 +1,6 @@
 import math
 import numpy as np
+import pickle
 from functools import partial
 
 class CMAEvolutionaryStrategy:
@@ -32,8 +33,25 @@ class CMAEvolutionaryStrategy:
         Can pass an array scaling_of_variables the designates the scale for
         each sigma for each variable independently, else assumed they are
         all the same scale for sigma.
+
+        Additional parameters:
+
+        seed - seed for generating a prng
+        prng - can provide a number randomstate prng
+        population_size
+        num_of_parents
+        covariance_matrix - initial cov matrix
+        chiN
+        mu_effective
+        cov_time_const
+        sigma_time_const
+        cov_1
+        cov_mu
+        sigma_damping
         """
 
+        self.objective = kwargs.get('objective', None)
+        self.obj_args = kwargs.get('obj_args', ())
         self.seed = kwargs.get('seed', 1)
         self.prng = np.random.RandomState(self.seed)
         self.centroid = np.array(x0)
@@ -195,7 +213,7 @@ class CMAEvolutionaryStrategy:
             objective_funct)(pop, *args) for pop in population )
 
     def _mpi_update(self, population, objective_funct, 
-        args, comm, size, rank):
+        args, comm, size, rank, MPI):
 
         work_list, num_items_per_worker = \
                                 split_work_between_ranks(population, size)
@@ -320,7 +338,7 @@ class CMAEvolutionaryStrategy:
 
         return corrected_cost
 
-    def engage(self, objective_funct, args=(), iterations = 100, \
+    def engage(self, objective_funct=None, args=(), iterations = 100, 
         parallel=True, num_of_jobs=-2, bounds=None, boundary_penalty=True,
         verbose=False, mpi=False):
         """
@@ -333,6 +351,10 @@ class CMAEvolutionaryStrategy:
         bounds: list of tuples of (min,max) values for each parameter
         """
 
+        if self.objective != None:
+            objective_funct = self.objective
+            args = self.obj_args
+
         self.bounds = bounds
         self.boundary_penalty = boundary_penalty
 
@@ -341,7 +363,7 @@ class CMAEvolutionaryStrategy:
                                     objective_funct=objective_funct, 
                                     args=args)
                 
-        elif parallel:
+        elif parallel and not mpi:
             from joblib import Parallel, delayed
             update_method = partial(self._parallel_update, 
                 objective_funct=objective_funct, 
@@ -360,7 +382,10 @@ class CMAEvolutionaryStrategy:
                 args=args, 
                 comm=comm, 
                 size=size, 
-                rank=rank)
+                rank=rank,
+                MPI=MPI)
+            # Save rank to enable saving
+            self.my_rank = rank
 
         for i in range(iterations):
             if verbose:
@@ -430,19 +455,24 @@ class CMAEvolutionaryStrategy:
             np.min(sorted_cost_by_generation, axis=1)
         mean_cost_by_generation = \
             np.mean(sorted_cost_by_generation, axis=1)
-        percentile25th_by_generation = \
-            np.percentile(sorted_cost_by_generation, 25, axis=1)
-        percentile75th_by_generation = \
-            np.percentile(sorted_cost_by_generation, 75, axis=1)
+        # percentile25th_by_generation = \
+        #     np.percentile(sorted_cost_by_generation, 25, axis=1)
+        # percentile75th_by_generation = \
+        #     np.percentile(sorted_cost_by_generation, 75, axis=1)
 
         plt.errorbar(range(len(mean_cost_by_generation)), \
-            mean_cost_by_generation, 
-            yerr=[mean_cost_by_generation - percentile25th_by_generation, \
-            percentile75th_by_generation - mean_cost_by_generation],
-            marker='o', ls='-', color='blue', label='mean')
-        plt.plot(range(len(max_cost_by_generation)), \
-            max_cost_by_generation, ls='None', marker='x', \
-            color='red', label='best')
+            mean_cost_by_generation,
+            marker='None', ls='-', color='blue', label='mean cost')
+
+
+        # plt.errorbar(range(len(mean_cost_by_generation)), \
+        #     mean_cost_by_generation, 
+        #     yerr=[mean_cost_by_generation - percentile25th_by_generation, \
+        #     percentile75th_by_generation - mean_cost_by_generation],
+        #     marker='None', ls='-', color='blue', label='mean')
+        # plt.plot(range(len(max_cost_by_generation)), \
+        #     max_cost_by_generation, ls='None', marker='x', \
+        #     color='red', label='best')
         if logy:
             plt.yscale('log')
         plt.grid(True)
@@ -463,10 +493,54 @@ class CMAEvolutionaryStrategy:
 
         return self.all_time_best['x']
 
+    def get_centroid(self):
+
+        return self.centroid
+
+    @classmethod
+    def load(cls, filename):
+        pickled_obj_file = open(filename,'rb')
+        obj = pickle.load(pickled_obj_file)
+        pickled_obj_file.close()
+
+        return obj
+
+    def save(self, filename):
+
+        if 'my_rank' in self.__dict__:
+            if self.my_rank == 0:
+                pickled_obj_file = open(filename,'wb')
+                pickle.dump(self, pickled_obj_file, 2)
+                pickled_obj_file.close()
+
+        else:
+            pickled_obj_file = open(filename,'wb')
+            pickle.dump(self, pickled_obj_file, 2)
+            pickled_obj_file.close()            
+
 class sepCMAEvolutionaryStrategy(CMAEvolutionaryStrategy):
 
     def __init__(self, x0, sigma0, **kwargs):
 
+        """
+        Additional parameters:
+
+        seed - seed for generating a prng
+        prng - can provide a number randomstate prng
+        population_size
+        num_of_parents
+        covariance_matrix - initial cov matrix
+        chiN
+        mu_effective
+        cov_time_const
+        sigma_time_const
+        cov_1
+        cov_mu
+        sigma_damping
+        """
+
+        self.objective = kwargs.get('objective', None)
+        self.obj_args = kwargs.get('obj_args', ())
         self.seed = kwargs.get('seed', 1)
         self.prng = np.random.RandomState(self.seed)
         self.centroid = np.array(x0)
@@ -590,6 +664,14 @@ class sepCMAEvolutionaryStrategy(CMAEvolutionaryStrategy):
         # Update eigen decomposition
         self._separable_cov_update()
 
+def split_work_between_ranks(iterable, size):
+
+    assert(len(iterable) % size == 0)
+    num_items_per_worker = int(len(iterable) / size)
+    return [ iterable[x:x + num_items_per_worker] 
+            for x in range(0, len(iterable), num_items_per_worker) ], \
+            num_items_per_worker
+
 def mutual_sort(sorting_sequence, *following_sequences, **kwargs):
 
     # reverse = kwargs.get("reversed", False)
@@ -650,14 +732,6 @@ def rosenbrock(x):
     return sum(100 * (x[i]**2 - x[i+1])**2 + (x[i] - 1)**2 
         for i in range(n-1))
 
-def split_work_between_ranks(iterable, size):
-
-    assert(len(iterable) % size == 0)
-    num_items_per_worker = int(len(iterable) / size)
-    return [ iterable[x:x + num_items_per_worker] 
-            for x in range(0, len(iterable), num_items_per_worker) ], \
-            num_items_per_worker
-
 class FunctorParallelTest:
     def __init__(self, par1, par2):
         self.par1 = None
@@ -683,6 +757,7 @@ if __name__ == '__main__':
     cmaes = sepCMAEvolutionaryStrategy(xo, 0.5, seed=3, population_size=8)
     cmaes.engage(rosenbrock, iterations=1000, 
         parallel=False, verbose=False, mpi=True)
+
     # from mpi4py import MPI
     # comm = MPI.COMM_WORLD
     # size = comm.Get_size()
