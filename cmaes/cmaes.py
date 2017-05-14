@@ -191,7 +191,7 @@ class CMAEvolutionaryStrategy:
             self.all_time_best['x'] = self.population_history[-1][0]['x']
             self.all_time_best['cost'] = \
                 self.population_history[-1][0]['cost']
-        elif self.all_time_best['cost'] < \
+        elif self.all_time_best['cost'] > \
             self.population_history[-1][0]['cost']:
 
             self.all_time_best['x'] = self.population_history[-1][0]['x']
@@ -214,6 +214,11 @@ class CMAEvolutionaryStrategy:
 
     def _mpi_update(self, population, objective_funct, 
         args, comm, size, rank, MPI):
+        """
+        Works only for even divisions between workers as
+        it becomes rather convoluted to send
+        missmatched data lengths via Allgather.
+        """
 
         work_list, num_items_per_worker = \
                                 split_work_between_ranks(population, size)
@@ -392,6 +397,18 @@ class CMAEvolutionaryStrategy:
                 print("Generation:", i)
             self._core_update(update_method)
 
+    def reset_sigma(self, sigma=None):
+        """
+        Resets sigma to a new value.
+        Can be used to boost exploration.
+        This does not reset the sigma evolutionary path however
+        """
+
+        if sigma != None:
+            self.sigma = sigma
+        else:
+            self.sigma = self.sigma0
+
     def plot_sigma_over_time(self, prefix='test', logy=False, savefile=False):
 
         import matplotlib.pyplot as plt
@@ -451,7 +468,7 @@ class CMAEvolutionaryStrategy:
             for member in generation ] \
             for generation in self.population_history]
 
-        max_cost_by_generation = \
+        min_cost_by_generation = \
             np.min(sorted_cost_by_generation, axis=1)
         mean_cost_by_generation = \
             np.mean(sorted_cost_by_generation, axis=1)
@@ -470,9 +487,9 @@ class CMAEvolutionaryStrategy:
         #     yerr=[mean_cost_by_generation - percentile25th_by_generation, \
         #     percentile75th_by_generation - mean_cost_by_generation],
         #     marker='None', ls='-', color='blue', label='mean')
-        # plt.plot(range(len(max_cost_by_generation)), \
-        #     max_cost_by_generation, ls='None', marker='x', \
-        #     color='red', label='best')
+        plt.plot(range(len(min_cost_by_generation)), \
+            min_cost_by_generation, ls='--', marker='None', \
+            color='red', label='best')
         if logy:
             plt.yscale('log')
         plt.grid(True)
