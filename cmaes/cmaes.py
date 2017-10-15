@@ -241,9 +241,12 @@ class CMAEvolutionaryStrategy:
 
         # Sample from distribution to create new offspring
         population = self._generate_population()
-        valid_population, violations = self._boundary_handling(population)
+        valid_population, violations = self._boundary_check(population)
         cost_values = update_method(valid_population)
-        corrected_cost = self._boundary_correction(cost_values, violations)
+        if self.boundary_type=="repair":
+            corrected_cost = self._boundary_correction(cost_values, violations)
+        else:
+            corrected_cost = cost_values
 
         # Sort the results (both values and population)
         cost_sorted_l2g, population_sorted_by_cost, \
@@ -299,53 +302,68 @@ class CMAEvolutionaryStrategy:
             np.linalg.norm(valid_parameters - invalid_parameters), \
             is_valid
 
-    def _boundary_handling(self, population):
+    def _boundary_check(self, population):
         """
-        Check population for invalide members.
+        Check population for invalid members.
         Revise member by placing in valid region.
         Return a list of revised population, a list of tuples with indexes of 
         violated members and the distances between the invalid and 
         validified members
         """
 
-        if self.bounds == None:
-            return population, [ (False,0) for i in \
-                                range(self.population_size) ]
+        if self.boundary_type == "repair":
+            if self.bounds == None:
+                return population, [ (False,0) for i in \
+                                    range(self.population_size) ]
 
-        violations = []
-        valid_population = population.copy()
-        for i, member in enumerate(population):
-            valid_member, distance, validity = \
-                self._nearest_valid_parameters(member, self.bounds)
-            valid_population[i] = valid_member
-            violations.append((validity, distance))
+            violations = []
+            valid_population = population.copy()
+            for i, member in enumerate(population):
+                valid_member, distance, validity = \
+                    self._nearest_valid_parameters(member, self.bounds)
+                valid_population[i] = valid_member
+                violations.append((validity, distance))
+        elif self.boundary_type == "periodic":
+            violations = None
+            valid_population = population.copy()
+            for i in range(valid_population.shape[0]):
+                _apply_periodic_bounds(valid_population[i])
 
         return valid_population, violations
 
     def _boundary_correction(self, cost, violations):
         """
         Apply corrections to the cost of members that violated conditions
-
-        This is just an ad hoc adjustment, will implement the following in the 
-        future: Errata/Addenda for A Method for Handling
-        Uncertainty in Evolutionary Optimization With an
-        Application to Feedback Control of Combustion, Nikolaus Hansen, 2011
         """
 
         corrected_cost = []
         for i in range(self.population_size):
-            if (not violations[i][0]) and self.boundary_penalty:
+            if (not violations[i][0]):
                 corrected_cost.append(cost[i] + 
-                    violations[i][1] * np.median(cost) / (self.sigma * \
-                        self.sigma * np.mean(self.covariance_matrix)))
+                                      self.penalty_coef * violations[i][1]**2)
             else:
                 corrected_cost.append(cost[i])
 
         return corrected_cost
 
+    def _apply_periodic_bounds(search_values):
+        """
+        Rescales the parameters using periodic boundary conditions. 
+        By default the search parameter space is bound between 0 and 1.
+        """
+
+        if !hasattr(self, '_parameter_scale'):
+            self._parameter_scale = (self.bounds[:,1] 
+                                     - self.bounds[:,0]) / 1.
+        np.multiply(search_values, self._parameter_scale, out=search_values)
+        np.add(search_values, self.bounds[:,0], out=search_values)
+
+        return None
+
     def engage(self, objective_funct=None, args=(), iterations = 100, 
-        parallel=True, num_of_jobs=-2, bounds=None, boundary_penalty=True,
-        verbose=False, mpi=False):
+        parallel=True, num_of_jobs=-2, bounds=None,
+        boundary_type="periodic", verbose=False, mpi=False,
+        penalty_coef=1.0):
         """
         Run the update process on the objective function for designated 
         number of iterations.
@@ -353,15 +371,18 @@ class CMAEvolutionaryStrategy:
         If num_of_jobs = -1, max number of processes are run
         If num_of_jobs = 1, it will be run in serial.
 
-        bounds: list of tuples of (min,max) values for each parameter
+        bounds: 2D array of shape Nx2 with (min,max) values for each parameter
+        boundary_penalty: TO DO implement f(x)=f(x_rep)+alpha||x-x_rep||^2
+        boundary_type: "repair" (penalty) or "periodic" (no penalty) or None
         """
 
         if self.objective != None:
             objective_funct = self.objective
             args = self.obj_args
 
-        self.bounds = bounds
-        self.boundary_penalty = boundary_penalty
+        self.bounds = np.array(bounds)
+        self.boundary_type = boundary_type
+        self.penalty_coef = penalty_coef
 
         if not parallel:
             update_method = partial(self._serial_update, 
@@ -477,7 +498,7 @@ class CMAEvolutionaryStrategy:
         # percentile75th_by_generation = \
         #     np.percentile(sorted_cost_by_generation, 75, axis=1)
 
-        plt.errorbar(range(len(mean_cost_by_generation)), \
+        plt.plot(range(len(mean_cost_by_generation)), \
             mean_cost_by_generation,
             marker='None', ls='-', color='blue', label='mean cost')
 
@@ -647,9 +668,12 @@ class sepCMAEvolutionaryStrategy(CMAEvolutionaryStrategy):
 
         # Sample from distribution to create new offspring
         population = self._generate_population()
-        valid_population, violations = self._boundary_handling(population)
+        valid_population, violations = self._boundary_check(population)
         cost_values = update_method(valid_population)
-        corrected_cost = self._boundary_correction(cost_values, violations)
+        if self.boundary_type=="repair":
+            corrected_cost = self._boundary_correction(cost_values, violations)
+        else:
+            corrected_cost = cost_values
 
         # Sort the results (both values and population)
         cost_sorted_l2g, population_sorted_by_cost, \
@@ -707,8 +731,8 @@ def mutual_sort(sorting_sequence, *following_sequences, **kwargs):
 
 def fmin(objective_funct, x0, sigma0, args=(), iterations=1000, \
     parallel=True, num_of_jobs=-2, cma_params={'seed':1}, bounds=None, \
-    verbose=False, return_history=False, boundary_penalty=True, mpi=False,
-    separable=False):
+    verbose=False, return_history=False, mpi=False, boundary_type=None,
+    separable=False, penalty_coef=1.0):
     """
     A functional version of the CMA evolutionary strategy
 
@@ -722,7 +746,7 @@ def fmin(objective_funct, x0, sigma0, args=(), iterations=1000, \
         cma_object = CMAEvolutionaryStrategy(x0, sigma0, **cma_params)
 
     cma_object.engage(objective_funct, args, iterations, parallel, 
-                num_of_jobs, bounds, boundary_penalty, verbose, mpi)
+                num_of_jobs, bounds, boundary_type, verbose, mpi, penalty_coef)
 
     if return_history:
         return cma_object.all_time_best['x'], cma_object.all_time_best['cost'], \
