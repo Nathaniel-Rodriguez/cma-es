@@ -180,6 +180,12 @@ class CMAEvolutionaryStrategy:
     def _update_log(self, population, cost_values):
         """
         Adds the new population and cost values to the population_history
+        Note: The centroid is the actual centroid used by CMAES, the population
+        however only logs valid population members. So the centroid won't
+        necessarily be situated on the mean of the valid members. If the
+        centroid consistently deviates from the valid population under repair
+        boundary type, consider increasing the penalty_coef parameter. Under
+        periodic conditions this is expected and can be ignored.
         """
 
         self.population_history.append([{ 'x' : population[i], \
@@ -234,6 +240,44 @@ class CMAEvolutionaryStrategy:
 
         return all_cost_values
 
+    def _evaluate_population(self, update_method, population):
+        """
+        Calls the update method on the population and takes care of any
+        boundary conditions set by user and log entries.
+        Returns a sorted population (from least to greatest).
+        """
+
+        if len(self.bounds) == 0:
+            cost_values = update_method(population)
+            cost_sorted_l2g, population_sorted_by_cost = \
+                mutual_sort(cost_values, population)
+            self._update_log(population_sorted_by_cost, cost_sorted_l2g)
+
+        elif (len(self.bounds) != 0) and (self.boundary_type == "periodic"):
+            valid_population, violations = self._boundary_check(population, 
+                                                                "periodic")
+            cost_values = update_method(valid_population)
+            cost_sorted_l2g, population_sorted_by_cost, \
+                valid_population_sorted_by_cost = \
+                mutual_sort(cost_values, population, valid_population)
+            self._update_log(valid_population_sorted_by_cost, cost_sorted_l2g)
+
+        elif (len(self.bounds) != 0) and (self.boundary_type == "repair"):
+            valid_population, violations = self._boundary_check(population, 
+                                                                "repair")
+            cost_values = update_method(valid_population)
+            corrected_cost = self._boundary_correction(cost_values, violations)
+            cost_sorted_l2g, population_sorted_by_cost, \
+                valid_population_sorted_by_cost = \
+                mutual_sort(corrected_cost, population, valid_population)
+            self._update_log(valid_population_sorted_by_cost, cost_sorted_l2g)
+
+        else:
+            raise Exception("Error: Invalid boundary_type or bounds arguments."
+                            + "\nValid boundary_types are (periodic, repair)")
+
+        return population_sorted_by_cost
+
     def _core_update(self, update_method):
         """
         updates the evolutionary paths, sigma, and the covariance matrix.
@@ -241,18 +285,8 @@ class CMAEvolutionaryStrategy:
 
         # Sample from distribution to create new offspring
         population = self._generate_population()
-        valid_population, violations = self._boundary_check(population)
-        cost_values = update_method(valid_population)
-        if self.boundary_type=="repair":
-            corrected_cost = self._boundary_correction(cost_values, violations)
-        else:
-            corrected_cost = cost_values
-
-        # Sort the results (both values and population)
-        cost_sorted_l2g, population_sorted_by_cost, \
-            valid_population_sorted_by_cost = \
-            mutual_sort(corrected_cost, population, valid_population)
-        self._update_log(valid_population_sorted_by_cost, cost_sorted_l2g)
+        population_sorted_by_cost = self._evaluate_population(update_method, 
+                                                              population)
 
         # Calculate weighted means of ranked, centroid difference, and h_sig
         old_centroid = self.centroid.copy()
@@ -302,7 +336,7 @@ class CMAEvolutionaryStrategy:
             np.linalg.norm(valid_parameters - invalid_parameters), \
             is_valid
 
-    def _boundary_check(self, population):
+    def _boundary_check(self, population, boundary_type):
         """
         Check population for invalid members.
         Revise member by placing in valid region.
@@ -311,11 +345,7 @@ class CMAEvolutionaryStrategy:
         validified members
         """
 
-        if self.boundary_type == "repair":
-            if self.bounds == None:
-                return population, [ (False,0) for i in \
-                                    range(self.population_size) ]
-
+        if boundary_type == "repair":
             violations = []
             valid_population = population.copy()
             for i, member in enumerate(population):
@@ -323,11 +353,12 @@ class CMAEvolutionaryStrategy:
                     self._nearest_valid_parameters(member, self.bounds)
                 valid_population[i] = valid_member
                 violations.append((validity, distance))
-        elif self.boundary_type == "periodic":
+
+        elif boundary_type == "periodic":
             violations = None
             valid_population = population.copy()
-            for i in range(valid_population.shape[0]):
-                _apply_periodic_bounds(valid_population[i])
+            for i in range(len(valid_population)):
+                self._apply_periodic_bounds(valid_population[i])
 
         return valid_population, violations
 
@@ -346,23 +377,26 @@ class CMAEvolutionaryStrategy:
 
         return corrected_cost
 
-    def _apply_periodic_bounds(search_values):
+    def _apply_periodic_bounds(self, search_values):
         """
         Rescales the parameters using periodic boundary conditions. 
         By default the search parameter space is bound between 0 and 1.
         """
 
-        if !hasattr(self, '_parameter_scale'):
+        try:
+            np.multiply(search_values, self._parameter_scale, out=search_values)
+            np.add(search_values, self.bounds[:,0], out=search_values)
+        except AttributeError:
             self._parameter_scale = (self.bounds[:,1] 
                                      - self.bounds[:,0]) / 1.
-        np.multiply(search_values, self._parameter_scale, out=search_values)
-        np.add(search_values, self.bounds[:,0], out=search_values)
+            np.multiply(search_values, self._parameter_scale, out=search_values)
+            np.add(search_values, self.bounds[:,0], out=search_values)
 
         return None
 
     def engage(self, objective_funct=None, args=(), iterations = 100, 
-        parallel=True, num_of_jobs=-2, bounds=None,
-        boundary_type="periodic", verbose=False, mpi=False,
+        parallel=True, num_of_jobs=-2, bounds=[],
+        boundary_type="repair", verbose=False, mpi=False,
         penalty_coef=1.0):
         """
         Run the update process on the objective function for designated 
@@ -455,7 +489,14 @@ class CMAEvolutionaryStrategy:
             plt.clf()
 
     def plot_centroid_over_time(self, prefix='test', logy=False, savefile=False):
+        """
+        This plots the CMA-ES centroid. Note that this is the centroid used by
+        the algorithm and hence does not have boundary corrections.
 
+        If the centroid is consistently varying outside of the bounds when
+        using boundary repair, it may suggest that are larger penalty_coef is
+        needed to disuade violations.
+        """
         import matplotlib.pyplot as plt 
 
         centroid_history = np.array(self.centroid_history)
@@ -528,12 +569,24 @@ class CMAEvolutionaryStrategy:
             plt.clf()
 
     def get_best(self):
+        """
+        Best always draws from population history, so is always valid
+        """
 
         return self.all_time_best['x']
 
-    def get_centroid(self):
+    def get_centroid(self, valid=False):
+        """
+        This gets the CMA-ES centroid, which may not have valid parameter values
+        Enable valid to convert centroid to valid parameter set
+        """
 
-        return self.centroid
+        if valid:
+            valid_centroid, violations = self._boundary_check([self.centroid], 
+                self.boundary_type)
+            return valid_centroid[0]
+        else:
+            return self.centroid
 
     @classmethod
     def load(cls, filename):
@@ -668,18 +721,8 @@ class sepCMAEvolutionaryStrategy(CMAEvolutionaryStrategy):
 
         # Sample from distribution to create new offspring
         population = self._generate_population()
-        valid_population, violations = self._boundary_check(population)
-        cost_values = update_method(valid_population)
-        if self.boundary_type=="repair":
-            corrected_cost = self._boundary_correction(cost_values, violations)
-        else:
-            corrected_cost = cost_values
-
-        # Sort the results (both values and population)
-        cost_sorted_l2g, population_sorted_by_cost, \
-            valid_population_sorted_by_cost = \
-            mutual_sort(corrected_cost, population, valid_population)
-        self._update_log(valid_population_sorted_by_cost, cost_sorted_l2g)
+        population_sorted_by_cost = self._evaluate_population(update_method, 
+                                                              population)
 
         # Calculate weighted means of ranked, centroid difference, and h_sig
         old_centroid = self.centroid.copy()
@@ -730,8 +773,8 @@ def mutual_sort(sorting_sequence, *following_sequences, **kwargs):
     return return_elements
 
 def fmin(objective_funct, x0, sigma0, args=(), iterations=1000, \
-    parallel=True, num_of_jobs=-2, cma_params={'seed':1}, bounds=None, \
-    verbose=False, return_history=False, mpi=False, boundary_type=None,
+    parallel=True, num_of_jobs=-2, cma_params={'seed':1}, bounds=[], \
+    verbose=False, return_history=False, mpi=False, boundary_type='repair',
     separable=False, penalty_coef=1.0):
     """
     A functional version of the CMA evolutionary strategy
