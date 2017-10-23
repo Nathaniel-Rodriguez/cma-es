@@ -392,17 +392,15 @@ class CMAEvolutionaryStrategy:
 
         np.multiply(search_values, self._parameter_scale, out=search_values)
         np.add(search_values, self.bounds[:,0], out=search_values)        
-        print(search_values,'\n')
 
     def _periodic_search_parameters(self, search_values):
 
-        print(search_values)
         np.mod(search_values, 2, out=search_values)
         search_values -= 1
         np.absolute(search_values, out=search_values)
         search_values *= -1
         search_values += 1
-        print(search_values)
+
     def _apply_periodic_bounds(self, search_values):
         """
         Rescales the parameters using periodic boundary conditions. 
