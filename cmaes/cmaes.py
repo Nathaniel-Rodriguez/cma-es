@@ -55,6 +55,8 @@ class CMAEvolutionaryStrategy:
         self.bounds = np.array(kwargs.get('bounds', []))
         self.boundary_type = kwargs.get('boundary_type', "repair")
         self.penalty_coef = kwargs.get('penalty_coef', 1.0)
+        if (len(self.bounds) != 0) and (self.boundary_type == "periodic"):
+            self._parameter_scale = (self.bounds[:,1] - self.bounds[:,0]) / 1.
         self.verbose = kwargs.get('verbose', False)
         self.mpi = kwargs.get('mpi', False)
         self.objective = kwargs.get('objective', None)
@@ -67,8 +69,7 @@ class CMAEvolutionaryStrategy:
         self.generation_number = 0
         self.scaling_of_variables = kwargs.get('scaling_of_variables', 
                                             np.ones(self.num_of_dimensions))
-        self.covariance_matrix = kwargs.get('covariance_matrix', 
-                                        np.identity(self.num_of_dimensions))
+
         self.population_size = kwargs.get('population_size', 
                         4 + math.floor(3 * math.log(self.num_of_dimensions)))
         self.num_of_parents = kwargs.get('num_of_parents', 
@@ -90,6 +91,8 @@ class CMAEvolutionaryStrategy:
 
     def _compute_parameters(self, kwargs):
 
+        self.covariance_matrix = kwargs.get('covariance_matrix', 
+                                        np.identity(self.num_of_dimensions))
         self.sigma = self.sigma0
 
         self.chiN = math.sqrt(self.num_of_dimensions) * \
@@ -385,22 +388,29 @@ class CMAEvolutionaryStrategy:
 
         return corrected_cost
 
+    def _rescale_search_parameters(self, search_values):
+
+        np.multiply(search_values, self._parameter_scale, out=search_values)
+        np.add(search_values, self.bounds[:,0], out=search_values)        
+        print(search_values,'\n')
+
+    def _periodic_search_parameters(self, search_values):
+
+        print(search_values)
+        np.mod(search_values, 2, out=search_values)
+        search_values -= 1
+        np.absolute(search_values, out=search_values)
+        search_values *= -1
+        search_values += 1
+        print(search_values)
     def _apply_periodic_bounds(self, search_values):
         """
         Rescales the parameters using periodic boundary conditions. 
         By default the search parameter space is bound between 0 and 1.
         """
 
-        try:
-            np.multiply(search_values, self._parameter_scale, out=search_values)
-            np.add(search_values, self.bounds[:,0], out=search_values)
-        except AttributeError:
-            self._parameter_scale = (self.bounds[:,1] 
-                                     - self.bounds[:,0]) / 1.
-            np.multiply(search_values, self._parameter_scale, out=search_values)
-            np.add(search_values, self.bounds[:,0], out=search_values)
-
-        return None
+        self._periodic_search_parameters(search_values)
+        self._rescale_search_parameters(search_values)
 
     def engage(self, iterations, objective_funct=None, args=()):
         """
@@ -635,48 +645,12 @@ class sepCMAEvolutionaryStrategy(CMAEvolutionaryStrategy):
 
         # Subsampling currently is on the TO DO list: don't use it
         # It doesn't work natively with the evolutionary paths.
+        super(sepCMAEvolutionaryStrategy, self).__init__(x0, sigma0, **kwargs)
         self.subsample = kwargs.get('subsample', -1) # -1 means no subsampling
-
-        self.parallel = kwargs.get('parallel', True)
-        self.num_of_jobs = kwargs.get('num_of_jobs', -2)
-        self.bounds = np.array(kwargs.get('bounds', []))
-        self.boundary_type = kwargs.get('boundary_type', "repair")
-        self.penalty_coef = kwargs.get('penalty_coef', 1.0)
-        self.verbose = kwargs.get('verbose', False)
-        self.mpi = kwargs.get('mpi', False)
-        self.objective = kwargs.get('objective', None)
-        self.obj_args = kwargs.get('obj_args', ())
-        self.seed = kwargs.get('seed', 1)
-
-        self.prng = np.random.RandomState(self.seed)
-        self.centroid = np.array(x0)
-        self.sigma0 = sigma0
-        self.num_of_dimensions = len(x0)
-        self.generation_number = 0
-        self.scaling_of_variables = kwargs.get('scaling_of_variables', 
-                                            np.ones(self.num_of_dimensions))
-        self.population_size = kwargs.get('population_size', 
-                        4 + math.floor(3 * math.log(self.num_of_dimensions)))
-        self.num_of_parents = kwargs.get('num_of_parents', 
-                                            int(self.population_size / 2.))
-        self.update_count = 0
-        self.covariance_matrix = np.ones(self.num_of_dimensions)
-        self._compute_parameters(kwargs)
-
-        # Logging variables
-        # Population history is a nested list. The outer list is over 
-        # generations, the inner list is sorted by performance. 
-        # Each element is a dictionary with keys={'x', 'cost'} 
-        # where 'x' is the member vector
-        self.population_history = []
-        self.centroid_history = []
-        self.sigma_history = []
-
-        # best is keyed by 'x' and 'cost'
-        self.all_time_best = {}
 
     def _compute_parameters(self, kwargs):
 
+        self.covariance_matrix = np.ones(self.num_of_dimensions)
         self.sigma = self.sigma0
 
         self.chiN = math.sqrt(self.num_of_dimensions) * \
