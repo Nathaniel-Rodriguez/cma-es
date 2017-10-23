@@ -633,6 +633,10 @@ class sepCMAEvolutionaryStrategy(CMAEvolutionaryStrategy):
         sigma_damping
         """
 
+        # Subsampling currently is on the TO DO list: don't use it
+        # It doesn't work natively with the evolutionary paths.
+        self.subsample = kwargs.get('subsample', -1) # -1 means no subsampling
+
         self.parallel = kwargs.get('parallel', True)
         self.num_of_jobs = kwargs.get('num_of_jobs', -2)
         self.bounds = np.array(kwargs.get('bounds', []))
@@ -640,10 +644,10 @@ class sepCMAEvolutionaryStrategy(CMAEvolutionaryStrategy):
         self.penalty_coef = kwargs.get('penalty_coef', 1.0)
         self.verbose = kwargs.get('verbose', False)
         self.mpi = kwargs.get('mpi', False)
-        self.subsample = kwargs.get('subsample', -1) # -1 means no subsampling
         self.objective = kwargs.get('objective', None)
         self.obj_args = kwargs.get('obj_args', ())
         self.seed = kwargs.get('seed', 1)
+
         self.prng = np.random.RandomState(self.seed)
         self.centroid = np.array(x0)
         self.sigma0 = sigma0
@@ -725,10 +729,25 @@ class sepCMAEvolutionaryStrategy(CMAEvolutionaryStrategy):
         Samples new members from the distribution using the current centroid 
         and covariance matrix
         """
-
-        return self.centroid + self.sigma * self.scaling_of_variables * \
-            np.multiply(self.prng.standard_normal((self.population_size, \
+        if self.subsample == -1:
+            mutations = self.sigma * self.scaling_of_variables * \
+                np.multiply(self.prng.standard_normal((self.population_size, \
                 self.num_of_dimensions)), self.BD)
+
+        elif self.subsample <= self.num_of_dimensions:
+            sampled_indices = self.prng.choice(self.num_of_dimensions, 
+                                               self.subsample,
+                                               replace=False)
+            mutations = np.zeros((self.population_size, self.num_of_dimensions))
+            mutations[:,sampled_indices] = self.sigma * \
+                self.scaling_of_variables[sampled_indices] * \
+                np.multiply(self.prng.standard_normal((self.population_size, \
+                self.subsample)), self.BD[sampled_indices])
+
+        else:
+            raise Exception("Error, invalid subsample amount.")
+
+        return self.centroid + mutations
 
     def _updated_sigma_path(self, c_diff):
 
