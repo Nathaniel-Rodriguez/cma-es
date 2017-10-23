@@ -50,6 +50,13 @@ class CMAEvolutionaryStrategy:
         sigma_damping
         """
 
+        self.parallel = kwargs.get('parallel', True)
+        self.num_of_jobs = kwargs.get('num_of_jobs', -2)
+        self.bounds = np.array(kwargs.get('bounds', []))
+        self.boundary_type = kwargs.get('boundary_type', "repair")
+        self.penalty_coef = kwargs.get('penalty_coef', 1.0)
+        self.verbose = kwargs.get('verbose', False)
+        self.mpi = kwargs.get('mpi', False)
         self.objective = kwargs.get('objective', None)
         self.obj_args = kwargs.get('obj_args', ())
         self.seed = kwargs.get('seed', 1)
@@ -57,6 +64,7 @@ class CMAEvolutionaryStrategy:
         self.centroid = np.array(x0)
         self.sigma0 = sigma0
         self.num_of_dimensions = len(x0)
+        self.generation_number = 0
         self.scaling_of_variables = kwargs.get('scaling_of_variables', 
                                             np.ones(self.num_of_dimensions))
         self.covariance_matrix = kwargs.get('covariance_matrix', 
@@ -394,10 +402,7 @@ class CMAEvolutionaryStrategy:
 
         return None
 
-    def engage(self, objective_funct=None, args=(), iterations = 100, 
-        parallel=True, num_of_jobs=-2, bounds=[],
-        boundary_type="repair", verbose=False, mpi=False,
-        penalty_coef=1.0):
+    def engage(self, iterations, objective_funct=None, args=()):
         """
         Run the update process on the objective function for designated 
         number of iterations.
@@ -414,25 +419,21 @@ class CMAEvolutionaryStrategy:
             objective_funct = self.objective
             args = self.obj_args
 
-        self.bounds = np.array(bounds)
-        self.boundary_type = boundary_type
-        self.penalty_coef = penalty_coef
-
-        if not parallel:
+        if not self.parallel:
             update_method = partial(self._serial_update, 
                                     objective_funct=objective_funct, 
                                     args=args)
                 
-        elif parallel and not mpi:
+        elif self.parallel and not self.mpi:
             from joblib import Parallel, delayed
             update_method = partial(self._parallel_update, 
                 objective_funct=objective_funct, 
                 args=args, 
-                num_of_jobs=num_of_jobs, 
+                num_of_jobs=self.num_of_jobs, 
                 Parallel=Parallel, 
                 delayed=delayed)
 
-        elif mpi:
+        elif self.mpi:
             from mpi4py import MPI
             comm = MPI.COMM_WORLD
             size = comm.Get_size()
@@ -448,9 +449,10 @@ class CMAEvolutionaryStrategy:
             self.my_rank = rank
 
         for i in range(iterations):
-            if verbose:
-                print("Generation:", i)
+            if self.verbose:
+                print("Generation:", self.generation_number)
             self._core_update(update_method)
+            self.generation_number += 1
 
     def reset_sigma(self, sigma=None):
         """
@@ -617,6 +619,7 @@ class sepCMAEvolutionaryStrategy(CMAEvolutionaryStrategy):
         Additional parameters:
 
         seed - seed for generating a prng
+        subsample - # of dimensions to subsample along for each iteration
         prng - can provide a number randomstate prng
         population_size
         num_of_parents
@@ -630,6 +633,14 @@ class sepCMAEvolutionaryStrategy(CMAEvolutionaryStrategy):
         sigma_damping
         """
 
+        self.parallel = kwargs.get('parallel', True)
+        self.num_of_jobs = kwargs.get('num_of_jobs', -2)
+        self.bounds = np.array(kwargs.get('bounds', []))
+        self.boundary_type = kwargs.get('boundary_type', "repair")
+        self.penalty_coef = kwargs.get('penalty_coef', 1.0)
+        self.verbose = kwargs.get('verbose', False)
+        self.mpi = kwargs.get('mpi', False)
+        self.subsample = kwargs.get('subsample', -1) # -1 means no subsampling
         self.objective = kwargs.get('objective', None)
         self.obj_args = kwargs.get('obj_args', ())
         self.seed = kwargs.get('seed', 1)
@@ -637,6 +648,7 @@ class sepCMAEvolutionaryStrategy(CMAEvolutionaryStrategy):
         self.centroid = np.array(x0)
         self.sigma0 = sigma0
         self.num_of_dimensions = len(x0)
+        self.generation_number = 0
         self.scaling_of_variables = kwargs.get('scaling_of_variables', 
                                             np.ones(self.num_of_dimensions))
         self.population_size = kwargs.get('population_size', 
@@ -797,10 +809,12 @@ def mutual_sort(sorting_sequence, *following_sequences, **kwargs):
         return_elements.append(seq)
     return return_elements
 
-def fmin(objective_funct, x0, sigma0, args=(), iterations=1000, \
-    parallel=True, num_of_jobs=-2, cma_params={'seed':1}, bounds=[], \
-    verbose=False, return_history=False, mpi=False, boundary_type='repair',
-    separable=False, penalty_coef=1.0):
+def fmin(objective_funct, x0, sigma0, args=(), iterations=1000,
+    cma_params={
+        'seed':1, 'bounds':[], 'verbose':False, 'mpi':False,
+        'boundary_type':'repair', 'penalty_coef':1.0,
+        'parallel':True, 'num_of_jobs':-2},
+    return_history=False, separable=False):
     """
     A functional version of the CMA evolutionary strategy
 
@@ -813,8 +827,7 @@ def fmin(objective_funct, x0, sigma0, args=(), iterations=1000, \
     else:
         cma_object = CMAEvolutionaryStrategy(x0, sigma0, **cma_params)
 
-    cma_object.engage(objective_funct, args, iterations, parallel, 
-                num_of_jobs, bounds, boundary_type, verbose, mpi, penalty_coef)
+    cma_object.engage(iterations, objective_funct, args)
 
     if return_history:
         return cma_object.all_time_best['x'], cma_object.all_time_best['cost'], \
@@ -864,8 +877,7 @@ if __name__ == '__main__':
 
     xo = np.array([0.5 for i in range(500)])
     cmaes = sepCMAEvolutionaryStrategy(xo, 0.5, seed=3, population_size=8)
-    cmaes.engage(rosenbrock, iterations=1000, 
-        parallel=False, verbose=False, mpi=True)
+    cmaes.engage(1000, rosenbrock)
 
     # from mpi4py import MPI
     # comm = MPI.COMM_WORLD
@@ -884,8 +896,7 @@ if __name__ == '__main__':
     # cmaes = sepCMAEvolutionaryStrategy([0.5, 0.5, 0.5], 0.5)
     # test_functor = FunctorParallelTest(1e3, 2.)
     # cmaes.engage(test_functor, args=(1e3, 2.), 
-    #     iterations=1000, num_of_jobs=1, verbose=True, parallel=False,
-    #     bounds=[(-1,1), (-1,1),(-1,1)], mpi=True)
+    #     iterations=1000)
 
     # from mpi4py import MPI
     # comm = MPI.COMM_WORLD
