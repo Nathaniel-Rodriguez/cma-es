@@ -644,7 +644,7 @@ class sepCMAEvolutionaryStrategy(CMAEvolutionaryStrategy):
         self.num_of_parents = kwargs.get('num_of_parents', 
                                             int(self.population_size / 2.))
         self.update_count = 0
-        self.covariance_matrix = np.identity(self.num_of_dimensions)
+        self.covariance_matrix = np.ones(self.num_of_dimensions)
         self._compute_parameters(kwargs)
 
         # Logging variables
@@ -678,7 +678,6 @@ class sepCMAEvolutionaryStrategy(CMAEvolutionaryStrategy):
         self.mu_effective = 1. / sum(self.weights ** 2)
 
         # separable Covariance matrix
-        self.B = np.identity(self.num_of_dimensions)
         self._separable_cov_update()
 
         # Generate time-constants
@@ -709,10 +708,36 @@ class sepCMAEvolutionaryStrategy(CMAEvolutionaryStrategy):
             1. + 2 * max(0, math.sqrt((self.mu_effective - 1) \
             / (self.num_of_dimensions + 1)) - 1) + self.sigma_time_const)
 
+    def _generate_population(self):
+        """
+        Samples new members from the distribution using the current centroid 
+        and covariance matrix
+        """
+
+        return self.centroid + self.sigma * self.scaling_of_variables * \
+            np.multiply(self.prng.standard_normal((self.population_size, \
+                self.num_of_dimensions)), self.BD)
+
+    def _updated_sigma_path(self, c_diff):
+
+        self.sigma_path = (1 - self.sigma_time_const) * self.sigma_path \
+            + math.sqrt(self.sigma_time_const * (2 - self.sigma_time_const) * \
+                self.mu_effective) / self.sigma * (1. / self.diagD) * c_diff
+
+    def _update_cov_matrix(self, parent_dist_from_centroid, hsig):
+
+        self.covariance_matrix = \
+            (1 - self.cov_1 - self.cov_mu + (1 - hsig) * self.cov_1 \
+            * self.cov_time_const * (2 - self.cov_time_const)) \
+            * self.covariance_matrix \
+            + self.cov_1 * self.cov_matrix_path * self.cov_matrix_path \
+            + self.cov_mu * ((self.weights * parent_dist_from_centroid.T) \
+            * parent_dist_from_centroid.T).sum(-1) / self.sigma ** 2
+
     def _separable_cov_update(self):
 
-        self.diagD = np.diagonal(self.covariance_matrix) ** 0.5        
-        self.BD = self.B * self.diagD
+        self.diagD = self.covariance_matrix**0.5     
+        self.BD = self.diagD
 
     def _core_update(self, update_method):
         """
