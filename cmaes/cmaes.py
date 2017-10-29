@@ -84,6 +84,9 @@ class CMAEvolutionaryStrategy:
         # generations, the inner list is sorted by performance. 
         # Each element is a dictionary with keys={'x', 'cost'} 
         # where 'x' is the member vector
+        #### TO DO: Dump history to file, and append to file (needs MPI compat)
+        self.save_pop_history = kwargs.get("save_pop_history", True)
+        self.save_centroid_history = kwargs.get("save_centroid_history", True)
         self.population_history = []
         self.centroid_history = []
         self.sigma_history = []
@@ -201,21 +204,25 @@ class CMAEvolutionaryStrategy:
         periodic conditions this is expected and can be ignored.
         """
 
-        self.population_history.append([{ 'x' : population[i], \
-            'cost': cost_values[i]} for i in range(self.population_size)] )
-        self.centroid_history.append(self.centroid.copy())
         self.sigma_history.append(self.sigma)
 
-        if len(self.all_time_best) == 0:
-            self.all_time_best['x'] = self.population_history[-1][0]['x']
-            self.all_time_best['cost'] = \
-                self.population_history[-1][0]['cost']
-        elif self.all_time_best['cost'] > \
-            self.population_history[-1][0]['cost']:
+        if self.save_pop_history:
+            self.population_history.append([{ 'x' : population[i], \
+                'cost': cost_values[i]} for i in range(self.population_size)] )
+        else:
+            self.population_history.append([{ 'x' : None, \
+                'cost': cost_values[i]} for i in range(self.population_size)] )
 
-            self.all_time_best['x'] = self.population_history[-1][0]['x']
-            self.all_time_best['cost'] = \
-                self.population_history[-1][0]['cost']
+        if self.save_centroid_history:
+            self.centroid_history.append(self.centroid.copy())
+            
+        if len(self.all_time_best) == 0:
+            self.all_time_best['x'] = population[0].copy()
+            self.all_time_best['cost'] = cost_values[0]
+        elif self.all_time_best['cost'] > cost_values[0]:
+
+            self.all_time_best['x'] = population[0].copy()
+            self.all_time_best['cost'] = cost_values[0]
 
     def _serial_update(self, population, objective_funct, args):
 
