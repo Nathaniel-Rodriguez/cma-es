@@ -11,7 +11,8 @@ class CMAEvolutionaryStrategy:
     arXiv:1604.00772. https://doi.org/10.1007/11007937_4
     DEAP: https://github.com/DEAP/deap/blob/master/deap/cma.py
 
-    Any functions that are to be optimized MUST be pickleable (serializable). 
+    Any functions that are to be optimized MUST be pickleable (serializable)
+    for parallelization on joblib.
     These functions will be minimized.
 
     NOTE: Only linear scaling is available. Take Hansen's advice and
@@ -50,6 +51,7 @@ class CMAEvolutionaryStrategy:
         sigma_damping
         """
 
+        self._my_rank = -1
         self.parallel = kwargs.get('parallel', True)
         self.num_of_jobs = kwargs.get('num_of_jobs', -2)
         self.bounds = np.array(kwargs.get('bounds', []))
@@ -454,7 +456,7 @@ class CMAEvolutionaryStrategy:
                 rank=rank,
                 MPI=MPI)
             # Save rank to enable saving
-            self.my_rank = rank
+            self._my_rank = rank
 
         for i in range(iterations):
             if self.verbose:
@@ -608,16 +610,16 @@ class CMAEvolutionaryStrategy:
 
     def save(self, filename):
 
-        if 'my_rank' in self.__dict__:
-            if self.my_rank == 0:
-                pickled_obj_file = open(filename,'wb')
-                pickle.dump(self, pickled_obj_file, 2)
-                pickled_obj_file.close()
-
-        else:
+        if self._my_rank == 0 or self._my_rank == -1:
             pickled_obj_file = open(filename,'wb')
-            pickle.dump(self, pickled_obj_file, 2)
-            pickled_obj_file.close()            
+            try:
+                pickle.dump(self, pickled_obj_file, 2)
+            except TypeError:
+                print("Can't pickle objective, setting to None")
+                self.objective = None
+                pickle.dump(self, pickled_obj_file, 2)
+
+            pickled_obj_file.close()
 
 class sepCMAEvolutionaryStrategy(CMAEvolutionaryStrategy):
 
