@@ -251,7 +251,8 @@ class CMAEvolutionaryStrategy:
             
         cost_values = []
         for pop in work_list[rank]:
-            cost_values.append(objective_funct(pop, *args))
+            cost = objective_funct(pop, *args)
+            cost_values.append(cost)
         cost_values = np.array(cost_values, dtype=np.float64)
         all_cost_values = np.empty(size * num_items_per_worker, 
                                     dtype=np.float64)
