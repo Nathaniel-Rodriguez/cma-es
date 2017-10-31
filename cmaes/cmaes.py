@@ -436,7 +436,7 @@ class CMAEvolutionaryStrategy:
             objective_funct = self.objective
             args = self.obj_args
 
-        if not self.parallel:
+        if not self.parallel and not self.mpi:
             update_method = partial(self._serial_update, 
                                     objective_funct=objective_funct, 
                                     args=args)
@@ -467,9 +467,15 @@ class CMAEvolutionaryStrategy:
 
         for i in range(iterations):
             if self.verbose:
-                print("Generation:", self.generation_number)
+                self.print_generation_number()
             self._core_update(update_method)
             self.generation_number += 1
+
+    def print_generation_number(self):
+        if self.mpi and (self._my_rank == 0):
+            print("Generation:", self.generation_number)
+        elif not self.mpi:
+            print("Generation:", self.generation_number)
 
     def reset_sigma(self, sigma=None):
         """
